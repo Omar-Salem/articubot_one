@@ -6,9 +6,51 @@ from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration, Command
 from launch.actions import DeclareLaunchArgument
 from launch_ros.actions import Node
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 import xacro
 
+def create_gazebo_nodes(robot_urdf) -> list:
+    """
+
+    :rtype: list
+    """
+
+    ros_gz_sim = get_package_share_directory("ros_gz_sim")
+    world = os.path.join(
+                    get_package_share_directory("articubot_one"),
+                    "worlds",
+                    "empty",
+                )
+
+    gazebo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            [os.path.join(ros_gz_sim, "launch"), "/gz_sim.launch.py"]
+        ),
+        launch_arguments=[("gz_args", [world, ".sdf", " -v 4", " -r"])],
+    )
+
+    gz_spawn_entity = Node(
+        package="ros_gz_sim",
+        executable="create",
+        output="screen",
+        arguments=[
+            "-string",
+            robot_urdf,
+            "-name",
+            "ugv",
+        ],
+    )
+
+    bridge = Node(
+        package="ros_gz_bridge",
+        executable="parameter_bridge",
+        arguments=["/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan"],
+        output="screen",
+    )
+
+    return [gazebo, gz_spawn_entity, bridge]
 
 def generate_launch_description():
 
@@ -44,4 +86,4 @@ def generate_launch_description():
             description='Use ros2_control if true'),
 
         node_robot_state_publisher
-    ])
+    ]+create_gazebo_nodes(robot_description_config))
